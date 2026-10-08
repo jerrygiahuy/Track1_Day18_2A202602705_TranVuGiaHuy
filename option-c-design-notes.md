@@ -2,7 +2,7 @@
 
 ## Ownership
 
-- **Người phụ trách chính:** Trần Vũ Gia Huy
+- **Người phụ trách chính:** Lưu Mạnh Hùng
 - **MHV:** 2A202602705
 - **Vai trò trong nhóm:** thiết kế và build Option C; cùng nhóm dùng chung hypothesis, context, content fixture và tiêu chí so sánh B/C.
 
@@ -78,7 +78,7 @@ Learner sửa / xóa / tạo lại / hủy / xác nhận lưu
 - [x] Có edit, delete/discard, regenerate và confirm.
 - [x] Không autosave; dữ liệu gốc không bị thay đổi.
 - [x] Có reset path.
-- [ ] Một người không tham gia build tự hoàn thành task mà không cần hướng dẫn.
+- [x] Một người không tham gia build đã thử cả B/C trong FB1; tuy nhiên cần facilitator giải thích màn hình, vì vậy tiêu chí “không cần hướng dẫn” **chưa đạt** và đã được đưa vào Next Change.
 
 Mục cuối chỉ được đánh dấu sau dry run hoặc phiên test thật.
 

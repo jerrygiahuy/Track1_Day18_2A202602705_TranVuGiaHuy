@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VLearn — Sổ ghi chú</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<script src="fixture.js"></script>
+<script src="shared.js"></script>
+<script>
+/* ===========================================================
+   OPTION B — "Cùng tổ chức" (Guided Co-creation)
+   Learner chọn phạm vi → AI gom nhóm, đề xuất heading, HỎI LÀM RÕ
+   chỗ thiếu ngữ cảnh → learner sửa và duyệt từng nhóm.
+   AI chỉ đụng vào phần learner đã chọn.
+   =========================================================== */
+
+const main = chrome({ progress: '4/14 hoạt động', pct: 28, notebook: { active: true } });
+
+const ALL = getTraces();         // dấu vết learner tự tạo ở Màn 1
+let picked = [];                 // id dấu vết learner chọn
+let groups = [];                 // bản làm việc
+let answers = {};                // câu trả lời làm rõ
+let skipped = {};                // câu đã bỏ qua
+let approved = {};               // nhóm đã duyệt
+let history = [];                // undo
+
+function snapshot() {
+  history.push(JSON.stringify({ groups, answers, skipped, approved }));
+  if (history.length > 30) history.shift();
+}
+function undo() {
+  if (!history.length) return;
+  const s = JSON.parse(history.pop());
+  groups = s.groups; answers = s.answers; skipped = s.skipped; approved = s.approved;
+  stepGroups();
+}
+
+/* ---------- Bước 1 — chọn phạm vi ---------- */
+
+function stepPick() {
+  main.innerHTML = `<div class="vl-card">
+    <button class="vl-ai-fab" title="Trợ lý AI">✦</button>
+
+    <div class="step-head">
+      <div class="step-kicker">SỔ GHI CHÚ · CÙNG TỔ CHỨC</div>
+      <h1>Tạo ghi chú cho bài này</h1>
+      <p>Chọn những dấu vết bạn muốn đưa vào ghi chú.</p>
+    </div>
+
+    <div class="notice ai">
+      <b>AI chỉ tổ chức những dấu vết bạn chọn.</b> Nó có thể nhóm sai hoặc bỏ sót ngữ cảnh.
+      Kết quả là <b>đề xuất</b>, không phải bản đúng.
+    </div>
+
+    <div class="pick" id="pick">
+      ${ALL.length ? '' : `<div class="trace-row"><span class="muted small">Bạn chưa đánh dấu gì trong bài này, nên AI không có gì để tổ chức. Bạn vẫn có thể tự viết ghi chú.</span></div>`}
+      ${ALL.map(t => `
+        <label class="pick-row" data-id="${t.id}">
+          <input type="checkbox" value="${t.id}">
+          <span class="badge ${t.kind}">${t.label}</span>
+          <div class="trace-text">${t.text}
+            <div class="trace-src">${t.id} · <a href="#" class="src-link" data-src="${t.secId || t.id}">→ ${t.src}</a></div>
+          </div>
+        </label>`).join('')}
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" id="run" disabled>Cùng AI tổ chức</button>
+      <span class="small muted" id="cnt">Chưa chọn dấu vết nào</span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="manual">Tự viết, không cần AI</button>
+    </div>
+  </div>`;
+
+  const boxes = [...main.querySelectorAll('#pick input')];
+  const run = document.getElementById('run');
+  const cnt = document.getElementById('cnt');
+
+  boxes.forEach(b => b.onchange = () => {
+    b.closest('.pick-row').classList.toggle('sel', b.checked);
+    picked = boxes.filter(x => x.checked).map(x => x.value);
+    run.disabled = picked.length === 0;
+    cnt.textContent = picked.length ? `Đã chọn ${picked.length} dấu vết` : 'Chưa chọn dấu vết nào';
+  });
+
+  /* Link nguồn không được tick checkbox theo */
+  main.querySelectorAll('.src-link').forEach(a => a.addEventListener('click', e => e.stopPropagation()));
+
+  run.onclick = () => {
+    groups = bGroups(ALL.filter(t => picked.includes(t.id)));
+    history = []; approved = {}; answers = {}; skipped = {};
+    stepGroups();
+  };
+  document.getElementById('manual').onclick = () => stepManual();
+
+  wireSources(main);
+}
+
+/* ---------- Bước 2 — đề xuất nhóm ---------- */
+
+function inGroups(id) { return groups.some(g => g.members.includes(id)); }
+
+function stepGroups() {
+  const CL = bClarify(ALL.filter(t => picked.includes(t.id)));
+  const clarifies = CL.filter(c => !answers[c.id] && !skipped[c.id]);
+  /* Chỉ báo "chưa xếp được" cho dấu vết mà KHÔNG có câu hỏi làm rõ nào đang hỏi về nó —
+     tránh hỏi cùng một thứ hai lần. */
+  const asking = new Set(clarifies.map(c => c.needs));
+  const ungrouped = picked.filter(id => !inGroups(id) && !asking.has(id));
+  const allApproved = groups.length > 0 && groups.every(g => approved[g.id]);
+
+  main.innerHTML = `<div class="vl-card">
+    <button class="vl-ai-fab" title="Trợ lý AI">✦</button>
+
+    <div class="step-head">
+      <div class="step-kicker">SỔ GHI CHÚ · CÙNG TỔ CHỨC</div>
+      <h1>AI đã gom ${groups.length} nhóm từ ${picked.length} dấu vết bạn chọn</h1>
+      <p>Đây là đề xuất. Bạn sửa được tiêu đề, chuyển dấu vết sang nhóm khác, hoặc bỏ bất cứ thứ gì.</p>
+    </div>
+
+    ${ungrouped.length ? ungrouped.map(id => {
+      const t = byId(id);
+      return `<div class="clarify">
+        <h4>? Cần bạn làm rõ</h4>
+        <p>AI chưa biết xếp dấu vết này vào đâu:<br>
+          <b>${t.label}</b> — "${t.text}" <a href="#" class="src-link" data-src="${t.secId || t.id}">→ ${t.src}</a></p>
+      </div>`; }).join('') : ''}
+
+    ${clarifies.map(c => `
+      <div class="clarify" data-cid="${c.id}">
+        <h4>? ${c.title}</h4>
+        <p>${c.q}</p>
+        <div class="row">
+          ${c.type === 'text'
+            ? `<input type="text" placeholder="${c.placeholder}"><button class="btn sm" data-act="save">Lưu câu trả lời</button>`
+            : c.choices.map(ch => `<button class="btn sm" data-act="choice" data-v="${ch}">${ch}</button>`).join('')}
+          <button class="btn sm ghost" data-act="skip">Bỏ qua</button>
+        </div>
+      </div>`).join('')}
+
+    ${Object.keys(answers).length || Object.keys(skipped).length ? CL
+      .filter(c => answers[c.id])
+      .map(c => `<div class="clarify done"><h4>✓ Bạn đã làm rõ</h4><p>${esc(answers[c.id])}</p></div>`).join('') : ''}
+
+    ${groups.length ? groups.map(g => `
+      <div class="grp${approved[g.id] ? ' ok' : ''}" data-gid="${g.id}">
+        <div class="grp-head">
+          <h3 contenteditable="true" spellcheck="false">${esc(g.heading)}</h3>
+          <span class="grp-sugg">${approved[g.id] ? '✓ ĐÃ DUYỆT' : 'AI ĐỀ XUẤT'}</span>
+          <button class="btn sm" data-act="approve">${approved[g.id] ? 'Bỏ duyệt' : 'Duyệt nhóm này'}</button>
+          <button class="btn sm danger" data-act="delgrp">Xoá nhóm</button>
+        </div>
+        <div class="grp-body">
+          ${g.members.map(id => { const t = byId(id); return `
+            <div class="grp-item" data-tid="${id}">
+              <span class="badge ${t.kind}">${t.label}</span>
+              <div class="gi-text">${t.text}
+                <div class="trace-src"><a href="#" class="src-link" data-src="${t.secId || t.id}">→ ${t.src}</a></div>
+              </div>
+              <div class="gi-ctl">
+                <select class="move" data-act="move">
+                  <option value="">Chuyển sang…</option>
+                  ${groups.filter(x => x.id !== g.id).map(x => `<option value="${x.id}">${esc(x.heading)}</option>`).join('')}
+                  <option value="__new">+ Nhóm mới</option>
+                </select>
+                <button class="btn sm ghost" data-act="drop" title="Bỏ khỏi ghi chú">×</button>
+              </div>
+            </div>`; }).join('')}
+        </div>
+      </div>`).join('')
+      : `<div class="notice">Không còn nhóm nào. Bạn có thể hoàn tác, hoặc chuyển sang tự viết.</div>`}
+
+    <div class="actions">
+      <button class="btn primary" id="save" ${allApproved ? '' : 'disabled'}>Lưu ghi chú</button>
+      <span class="small muted">${allApproved ? 'Tất cả nhóm đã được duyệt.' : `Duyệt từng nhóm trước khi lưu (${Object.keys(approved).filter(k => approved[k]).length}/${groups.length}).`}</span>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="undo" ${history.length ? '' : 'disabled'}>Hoàn tác</button>
+      <button class="btn ghost" id="manual">Tự viết, không cần AI</button>
+      <button class="btn ghost" id="back">← Chọn lại phạm vi</button>
+    </div>
+  </div>`;
+
+  /* --- Câu hỏi làm rõ --- */
+  main.querySelectorAll('.clarify[data-cid]').forEach(box => {
+    const cid = box.dataset.cid;
+    box.querySelectorAll('[data-act]').forEach(btn => btn.onclick = () => {
+      const act = btn.dataset.act;
+      snapshot();
+      if (act === 'skip') skipped[cid] = true;
+      if (act === 'choice') answers[cid] = btn.dataset.v;
+      if (act === 'save') {
+        const v = box.querySelector('input').value.trim();
+        if (!v) return;
+        answers[cid] = v;
+      }
+      stepGroups();
+    });
+  });
+
+  /* --- Thao tác trên nhóm --- */
+  main.querySelectorAll('.grp').forEach(el => {
+    const gid = el.dataset.gid;
+    const g = groups.find(x => x.id === gid);
+
+    const h = el.querySelector('h3');
+    h.onblur = () => { if (h.textContent.trim() && h.textContent.trim() !== g.heading) { snapshot(); g.heading = h.textContent.trim(); } };
+
+    el.querySelector('[data-act=approve]').onclick = () => { snapshot(); approved[gid] = !approved[gid]; stepGroups(); };
+    el.querySelector('[data-act=delgrp]').onclick = () => { snapshot(); groups = groups.filter(x => x.id !== gid); delete approved[gid]; stepGroups(); };
+
+    el.querySelectorAll('.grp-item').forEach(it => {
+      const tid = it.dataset.tid;
+      it.querySelector('[data-act=drop]').onclick = () => {
+        snapshot();
+        g.members = g.members.filter(m => m !== tid);
+        groups = groups.filter(x => x.members.length);
+        stepGroups();
+      };
+      it.querySelector('select[data-act=move]').onchange = e => {
+        const to = e.target.value; if (!to) return;
+        snapshot();
+        g.members = g.members.filter(m => m !== tid);
+        if (to === '__new') {
+          groups.push({ id: 'g' + Date.now(), heading: 'Nhóm mới', members: [tid] });
+        } else {
+          groups.find(x => x.id === to).members.push(tid);
+        }
+        groups = groups.filter(x => x.members.length);
+        stepGroups();
+      };
+    });
+  });
+
+  document.getElementById('undo').onclick = undo;
+  document.getElementById('manual').onclick = stepManual;
+  document.getElementById('back').onclick = stepPick;
+  document.getElementById('save').onclick = saveFromGroups;
+
+  wireSources(main);
+  window.scrollTo(0, 0);
+}
+
+/* ---------- Lối thoát — tự viết ---------- */
+
+function stepManual() {
+  main.innerHTML = `<div class="vl-card">
+    <button class="vl-ai-fab" title="Trợ lý AI">✦</button>
+    <div class="step-head">
+      <div class="step-kicker">SỔ GHI CHÚ</div>
+      <h1>Tự viết ghi chú</h1>
+      <p>Mọi đề xuất của AI đã được bỏ. Dấu vết của bạn vẫn ở bên phải.</p>
+    </div>
+    <div class="two-col">
+      <textarea class="editor" id="ed" placeholder="Viết ghi chú của bạn…"></textarea>
+      ${sideSources()}
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="save">Lưu ghi chú</button>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="back">← Quay lại đề xuất của AI</button>
+    </div>
+  </div>`;
+  document.getElementById('back').onclick = () => groups.length ? stepGroups() : stepPick();
+  document.getElementById('save').onclick = () => {
+    const v = document.getElementById('ed').value.trim();
+    renderSaved(main, `<section><pre class="plain">${esc(v) || '(trống)'}</pre></section>`, []);
+  };
+  wireSources(main);
+  window.scrollTo(0, 0);
+}
+
+/* ---------- Lưu ---------- */
+
+function saveFromGroups() {
+  const srcs = [];
+  const html = groups.map(g => {
+    g.members.forEach(m => srcs.push(m));
+    return `<section>
+      <h4>${esc(g.heading)}</h4>
+      <ul>${g.members.map(id => {
+        const t = byId(id);
+        return `<li>${t.text} <a href="#" class="src-link" data-src="${t.secId || t.id}">→ ${t.src}</a></li>`;
+      }).join('')}</ul>
+    </section>`;
+  }).join('') + bClarify(ALL.filter(t => picked.includes(t.id))).filter(c => answers[c.id]).map(c =>
+      `<section><h4>Bạn đã làm rõ</h4><p>${esc(answers[c.id])}</p></section>`).join('');
+
+  renderSaved(main, html || '<p class="muted">(trống)</p>', srcs);
+}
+
+stepPick();
+</script>
+</body>
+</html>

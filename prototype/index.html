@@ -1,118 +1,312 @@
 <!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>VLearn · Ghi chú bằng AI</title>
-  <link rel="stylesheet" href="styles.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VLearn — Bốn thành phần của một prompt hiệu quả</title>
+<link rel="stylesheet" href="shared.css">
 </head>
 <body>
-  <header class="topbar">
-    <button class="header-back" data-action="reset" aria-label="Quay lại">←</button>
-    <a class="brand" href="#" data-action="reset">Ngày 2 · Day 17 - Track 1 - Product Discovery: Finding and Validatin...</a>
-    <div class="header-actions"><span class="languages">EN <b>VI</b></span><span>2/22 hoạt động</span><span class="progress"><i></i></span><button data-action="ask-ai">✦ &nbsp; Đặt câu hỏi với AI</button><button data-action="request">♧ &nbsp; Gửi yêu cầu</button><button class="ai-notes-header" data-action="start-ai">▱ &nbsp; Ghi chú bằng AI</button><span class="avatar">T</span></div>
-  </header>
-  <aside class="lesson-sidebar"><div class="sidebar-title">NỘI DUNG BÀI HỌC <button data-action="sidebar" aria-label="Đóng danh mục">×</button></div><h3>Slide bài giảng <span>⌄</span></h3><div class="lesson-item selected"><span class="lesson-icon">▣</span><strong>Slide bài giảng</strong><small>Đang học</small></div><div id="lesson-list"></div><div class="sidebar-section">Slide bài giảng <span>›</span></div><div class="sidebar-section">Slide bài giảng <span>›</span></div><div class="sidebar-section">⚗ Track 1 - Day 17 – Finding and...</div></aside>
-  <div class="learning-workspace">
-    <article class="slide-page">
-      <button class="slide-ai" data-action="ask-ai" aria-label="Đặt câu hỏi về slide với AI">✧</button>
-      <h2>Câu trả lời dễ nghe không phải là evidence</h2>
-      <div class="slide-columns">
-        <section><h3><b>1</b> Họ trả lời cho lịch sự</h3><div class="illustration conversation"><span class="person">♙</span><span class="bubble">☼</span><span class="bubble pink">✓</span><span class="person">♙</span></div><h4>HỌ NÓI RA</h4><div class="quote">“Nghe hay đấy. Tôi thích ý tưởng này.”</div><h4 class="muted-heading">HỌ CHƯA NGHĨ TỚI</h4><div class="unspoken">“Sao tôi lại phải trả tiền cho cái đó?”</div><p>Họ không muốn làm bạn thất vọng – nên khen là cách rẻ nhất để kết thúc cuộc nói chuyện.</p></section>
-        <section><h3><b>2</b> Ai cũng muốn cái tốt hơn</h3><div class="illustration improvement"><span class="person">♙</span><span class="arrow">⤴</span><span class="document">━<br>━<br>━</span><span class="question-mark">? đ</span></div><h4>HỌ NÓI RA</h4><div class="quote">“Có, tất nhiên là tôi muốn cái đó tốt hơn.”</div><h4 class="muted-heading">HỌ CHƯA NGHĨ TỚI</h4><div class="unspoken">Chưa nghĩ tới giá, thời gian học lại, hay việc phải đổi cách làm.</div><p>Hỏi về một phương án tốt hơn thì câu trả lời luôn là “có” – cho tới lúc họ phải thấy nó thật và phải trả giá thật.</p></section>
-      </div><footer>Vì vậy đừng hỏi về tương lai. Hỏi về một lần đã xảy ra – ở đó không còn chỗ cho phép lịch sự.</footer>
-    </article>
-    <div class="slide-toolbar"><div class="drawing-tools"><button class="tool active" title="Chọn">➤</button><button class="tool" title="Bút">♢</button><button class="tool" title="Highlight">⌁</button><button class="tool" title="Hình tròn">○</button><button class="tool" title="Tẩy">◇</button><span class="divider"></span><button class="tool">♧</button><button class="tool">T</button></div><div class="view-switch"><button class="active">▣ Từng trang</button><button>▱ Cuộn dọc</button></div><div class="zoom"><button data-action="zoom-out">⊖</button><span id="zoom-label">100%</span><button data-action="zoom-in">⊕</button></div><span class="divider"></span><button class="tool" data-action="undo">↶</button><button class="tool trash" data-action="clear">♜</button><button class="tool" data-action="fullscreen">⤢</button><div class="pagination"><button data-action="prev">‹</button><span id="page-label">20</span><span>/ 28</span><button data-action="next">›</button><button class="tool">⊞</button></div><button class="notebook-button" data-action="notes">▱ Sổ ghi chú</button></div>
-    <div class="helpful">Nội dung này có hữu ích không? <button data-action="like">♧</button><button data-action="dislike">♧</button><button data-action="flag">⚑</button></div>
+<script src="fixture.js"></script>
+<script src="shared.js"></script>
+<script>
+/* ===========================================================
+   MÀN 1 — COMMON CONTEXT. Giống hệt nhau cho cả B và C.
+
+   Learner TỰ đánh dấu trong lúc đọc: bôi đen một đoạn rồi chọn
+   Highlight / Chưa hiểu / Câu hỏi / Ghi chú.
+
+   Bộ dấu vết tạo ra được lưu vào sessionStorage và dùng chung
+   cho CẢ HAI option — learner chỉ đánh dấu một lần, nên B và C
+   vẫn ăn đúng một input (Comparison Contract).
+
+   Facilitator điều khiển hoàn toàn bằng tham số URL — không có
+   nút chọn option nào hiện trên màn hình:
+
+     index.html?opt=b      → đi tới "Cùng tổ chức"
+     index.html?opt=c      → đi tới "Nháp sẵn"      (mặc định: b)
+     &fresh=1              → xoá hết dấu vết, dùng khi đổi tester
+     &demo=1               → nạp sẵn bộ dấu vết mẫu để nhóm diễn tập
+   =========================================================== */
+
+const params = new URLSearchParams(location.search);
+const OPT = params.get('opt') === 'c' ? 'c' : 'b';
+
+/* Dấu vết được GIỮ LẠI khi quay về Màn 1.
+   Lý do: tester chạy option thứ hai phải dùng ĐÚNG bộ dấu vết đã tạo ở lượt đầu,
+   nếu không thì B và C ăn input khác nhau và không còn so sánh được. */
+if (params.get('fresh') === '1') setTraces([]);
+if (params.get('demo') === '1' && !getTraces().length) DEMO_TRACES.forEach(t => addTrace({ ...t }));
+const restored = getTraces().length > 0;
+
+const main = chrome({
+  progress: '3/14 hoạt động', pct: 21,
+  notebook: { href: `option-${OPT}.html` }   // vào Sổ ghi chú bất cứ lúc nào
+});
+
+main.innerHTML = `
+<div class="vl-card">
+  <button class="vl-ai-fab" title="Trợ lý AI">✦</button>
+
+  <div class="lesson-meta"><span>${COURSE.name}</span><span>·</span><span>${COURSE.lessonNo}</span><span>·</span><span>${COURSE.date}</span></div>
+  <h1 class="lesson-h1">${COURSE.title}</h1>
+  <p class="lesson-sub">${COURSE.subtitle}</p>
+
+  <div class="mark-hint">${restored
+    ? 'Bài bạn vừa học, cùng những chỗ bạn đã đánh dấu. Bôi đen để đánh dấu thêm.'
+    : 'Bôi đen một đoạn bất kỳ để đánh dấu.'}</div>
+
+  <div id="lesson">
+    ${SECTIONS.map(s => `
+      <div class="sec${s.hard ? ' hard' : ''}" id="${s.id}" data-sec="${s.id}">
+        <h2>${s.no}. ${s.title}</h2>
+        ${s.html}
+      </div>`).join('')}
   </div>
-  <div class="notes-backdrop" data-action="close-notes"></div>
-  <main class="shell notes-panel">
-    <div class="notes-heading"><strong>▱ Sổ ghi chú</strong><button data-action="close-notes" aria-label="Đóng sổ ghi chú">×</button></div>
-    <nav class="notebook-tabs" aria-label="Sổ ghi chú"><button data-action="library">Ghi chú đã lưu <span id="saved-count">0</span></button><button data-action="start-ai">✦ Tạo ghi chú bằng AI</button></nav>
-    <section id="library" class="screen" aria-labelledby="library-title">
-      <p class="eyebrow">Kho ghi chú cá nhân</p><h1 id="library-title">Ghi chú đã lưu</h1>
-      <p class="lede">Xem lại những điều đã học, câu hỏi còn mở và nguồn bài học.</p>
-      <input id="note-search" class="note-search" type="search" placeholder="Tìm theo tên bài hoặc nội dung" aria-label="Tìm ghi chú">
-      <div id="saved-notes"></div>
-    </section>
-    <section id="saved-detail" class="screen" aria-labelledby="saved-title">
-      <button class="back" data-action="library">← Ghi chú đã lưu</button><p class="eyebrow">Ghi chú cá nhân</p>
-      <h1 id="saved-title"></h1><p id="saved-meta" class="saved-meta"></p><div id="saved-content"></div>
-      <div class="actions"><button class="secondary" data-action="export-note">Tải bản Markdown</button><button class="primary" data-action="update-note">Lưu chỉnh sửa</button></div>
-    </section>
-    <section id="context-screen" class="screen active" aria-labelledby="context-title">
-      <p class="eyebrow">Bài học vừa hoàn thành</p>
-      <h1 id="context-title">AI Agent: Lập kế hoạch và sử dụng công cụ</h1>
-      <p class="lede">Bạn đã để lại 4 dấu vết trong bài. Hãy tạo một ghi chú đủ ngữ cảnh để có thể tìm và dùng lại sau này.</p>
 
-      <div class="notice neutral">
-        <strong>Dấu vết AI sẽ dùng để tạo ghi chú</strong>
-        <span>2 highlights · 1 điểm chưa hiểu · 1 câu hỏi cá nhân</span>
-      </div>
+  <hr style="border:0;border-top:1px solid var(--border);margin:30px 0 24px;max-width:760px">
 
-      <div class="trace-list" aria-label="Dấu vết học tập">
-        <article class="trace" data-trace="goal">
-          <div><span class="tag highlight">Highlight</span><strong>Goal cho biết kết quả agent cần đạt, không phải từng bước phải làm.</strong></div>
-          <small>Nguồn: Phần 1 · Goal và plan</small>
-        </article>
-        <article class="trace" data-trace="tool">
-          <div><span class="tag highlight">Highlight</span><strong>Tool chỉ nên được gọi khi action có liên quan và điều kiện đầu vào đã đủ.</strong></div>
-          <small>Nguồn: Phần 2 · Tool use</small>
-        </article>
-        <article class="trace" data-trace="unclear">
-          <div><span class="tag unclear">Chưa hiểu</span><strong>Khi nào agent nên lập lại kế hoạch?</strong></div>
-          <small>Nguồn: Phần 3 · Recovery</small>
-        </article>
-        <article class="trace" data-trace="question">
-          <div><span class="tag question">Câu hỏi</span><strong>Làm sao để người dùng biết agent đang dựa vào bằng chứng nào?</strong></div>
-          <small>Ghi chú cá nhân</small>
-        </article>
-      </div>
+  <div class="step-head">
+    <div class="step-kicker">HẾT BÀI</div>
+    <h1>Bạn đã đọc xong bài này</h1>
+    <p>Những chỗ bạn đã đánh dấu trong lúc học:</p>
+  </div>
 
-      <button class="primary" data-action="start-ai">✦ Tạo ghi chú bằng AI</button>
-    </section>
+  <div id="traceList"></div>
 
-    <section id="c-offer" class="screen" aria-labelledby="c-offer-title">
-      <button class="back" data-action="home">← Về bối cảnh chung</button>
-      <p class="eyebrow">1. Tạo nháp → 2. Kiểm tra → 3. Lưu vào Sổ ghi chú</p>
-      <h1 id="c-offer-title">Tạo bản nháp ghi chú bằng AI?</h1>
-      <div class="notice caution"><strong>AI sẽ dùng nội dung bài và cả 4 dấu vết.</strong><span>Bản nháp có thể nhóm sai, bỏ sót hoặc suy luận ngoài ý bạn. AI sẽ không tự lưu.</span></div>
-      <ul class="data-list"><li>Nội dung bài học hiện tại</li><li>2 highlights</li><li>1 điểm “Chưa hiểu”</li><li>1 câu hỏi cá nhân</li></ul>
-      <div class="actions"><button class="secondary" data-action="home">Bỏ qua</button><button class="primary" data-action="c-generate">Tạo bản nháp</button></div>
-    </section>
+  <div class="actions" id="noteCta"></div>
 
-    <section id="c-review" class="screen" aria-labelledby="c-review-title">
-      <button class="back" data-action="c-back">← Quay lại</button>
-      <p class="eyebrow">Bước 2 · Kiểm tra và lưu</p>
-      <h1 id="c-review-title">Kiểm tra bản nháp trước khi lưu</h1>
-      <div class="notice neutral"><strong>Bản nháp do AI tạo · chưa được lưu</strong><span>Đối chiếu nguồn và sửa những phần không đúng ý bạn.</span></div>
-      <div class="note-block">
-        <label>Tóm tắt <textarea>AI Agent nhận một goal, lập kế hoạch và gọi công cụ phù hợp để đạt kết quả. Khi gặp lỗi, agent luôn phải lập lại toàn bộ kế hoạch.</textarea></label>
-        <button class="source" data-source="Phần 1 · Goal và plan; Phần 2 · Tool use">Xem 2 nguồn</button>
-      </div>
-      <div class="note-block uncertain">
-        <label>Điểm cần kiểm tra <textarea>Agent luôn phải lập lại toàn bộ kế hoạch khi gặp lỗi.</textarea></label>
-        <span class="warning">AI suy luận · nguồn không khẳng định “luôn luôn”</span>
-        <button class="source" data-source="Phần 3 · Recovery">Xem nguồn</button>
-      </div>
-      <div class="note-block">
-        <label>Câu hỏi tiếp theo <textarea>Làm sao để hiển thị bằng chứng mà agent đang sử dụng?</textarea></label>
-        <button class="source" data-source="Ghi chú cá nhân của bạn">Xem nguồn</button>
-      </div>
-      <div class="actions"><button class="secondary" data-action="c-regenerate">Tạo lại với phạm vi hẹp hơn</button><button class="danger" data-action="discard">Hủy bản nháp</button><button class="primary" data-action="save">Xác nhận và lưu</button></div>
-    </section>
+  <div class="actions" id="go"></div>
+</div>
 
-    <section id="result" class="screen result" aria-labelledby="result-title">
-      <span class="success-mark">✓</span><h1 id="result-title">Đã lưu ghi chú</h1>
-      <p>Bản gốc và các dấu vết học tập vẫn được giữ nguyên.</p>
-      <button class="primary" data-action="view-saved">Xem ghi chú vừa lưu</button>
-      <button class="secondary" data-action="library">Mở kho ghi chú</button>
-      <button class="secondary" data-action="close-notes">Tiếp tục học</button>
-    </section>
-  </main>
+<div class="mark-bar" id="markBar">
+  <button data-k="hl"><i class="sw hl"></i>Highlight</button>
+  <button data-k="un"><i class="sw un"></i>Chưa hiểu</button>
+  <button data-k="qs"><i class="sw qs"></i>Câu hỏi</button>
+  <button data-k="nt"><i class="sw nt"></i>Ghi chú</button>
+</div>`;
 
-  <dialog id="source-dialog"><h2>Nguồn của nội dung</h2><p id="source-text"></p><button class="primary" data-action="close-dialog">Đóng</button></dialog>
-  <div id="toast" role="status" aria-live="polite"></div>
-  <script src="app.js"></script>
+/* ===========================================================
+   Chọn văn bản → thanh công cụ đánh dấu
+   =========================================================== */
+
+const bar = document.getElementById('markBar');
+const lesson = document.getElementById('lesson');
+let pending = null;   // { range, secId, text }
+
+function hideBar() { bar.classList.remove('on'); pending = null; }
+
+document.addEventListener('mouseup', e => {
+  if (bar.contains(e.target)) return;
+  const sel = window.getSelection();
+  const text = sel && !sel.isCollapsed ? sel.toString().trim() : '';
+  if (!text || text.length < 3) { hideBar(); return; }
+
+  const range = sel.getRangeAt(0);
+  const host = range.commonAncestorContainer.nodeType === 1
+    ? range.commonAncestorContainer
+    : range.commonAncestorContainer.parentElement;
+  const sec = host && host.closest ? host.closest('[data-sec]') : null;
+  if (!sec || !lesson.contains(sec)) { hideBar(); return; }
+
+  pending = { range: range.cloneRange(), secId: sec.dataset.sec, text };
+
+  const r = range.getBoundingClientRect();
+  bar.classList.add('on');
+  const bw = bar.offsetWidth || 340;
+  bar.style.left = Math.max(12, Math.min(window.innerWidth - bw - 12, r.left + r.width / 2 - bw / 2)) + 'px';
+  bar.style.top = (r.top + window.scrollY - bar.offsetHeight - 10) + 'px';
+});
+
+document.addEventListener('scroll', hideBar, true);
+
+bar.querySelectorAll('button').forEach(b => b.onclick = () => {
+  if (!pending) return;
+  const kind = b.dataset.k;
+  const { range, secId, text } = pending;
+
+  if (kind === 'hl' || kind === 'un') {
+    paint(range, kind, text, secId);
+  } else {
+    /* Câu hỏi / Ghi chú: đoạn bôi đen là chỗ neo, learner gõ nội dung */
+    paint(range, kind, text, secId, true);
+  }
+  window.getSelection().removeAllRanges();
+  hideBar();
+});
+
+/* Bọc đoạn đã chọn và ghi dấu vết */
+function paint(range, kind, text, secId, askText) {
+  let rec;
+  if (askText) {
+    openComposer(kind, secId, text, range);
+    return;
+  }
+  rec = addTrace({ kind, secId, text });
+  wrap(range, kind, rec.id);
+  renderTraces();
+}
+
+function wrap(range, kind, id) {
+  const span = document.createElement(kind === 'hl' ? 'mark' : 'span');
+  span.className = kind === 'hl' ? 'hl' : (kind === 'un' ? 'unclear' : 'anchor');
+  span.dataset.tid = id;
+  try {
+    span.appendChild(range.extractContents());
+    range.insertNode(span);
+    const tag = document.createElement('span');
+    tag.className = 'trace-tag' + (kind === 'hl' ? ' h' : '');
+    tag.textContent = id;
+    span.after(tag);
+    tag.dataset.tid = id;
+  } catch (err) {
+    /* Chọn vắt qua nhiều đoạn — vẫn ghi dấu vết, chỉ không tô được */
+  }
+}
+
+function wipe() {
+  getTraces().forEach(t => unwrap(t.id));
+  setTraces([]);
+}
+
+function unwrap(id) {
+  document.querySelectorAll(`[data-tid="${id}"]`).forEach(el => {
+    if (el.classList.contains('trace-tag')) { el.remove(); return; }
+    const p = el.parentNode;
+    while (el.firstChild) p.insertBefore(el.firstChild, el);
+    p.removeChild(el);
+    p.normalize();
+  });
+}
+
+/* ---------- Ô gõ câu hỏi / ghi chú ---------- */
+
+function openComposer(kind, secId, anchorText, range) {
+  const sec = secId ? document.getElementById(secId) : null;
+  const box = document.createElement('div');
+  box.className = 'composer';
+  box.innerHTML = `
+    <div class="cm-head">${kind === 'qs' ? 'Viết câu hỏi của bạn' : 'Viết ghi chú ngắn'}
+      ${anchorText ? `<span class="muted small">· về “${esc(anchorText.slice(0, 60))}${anchorText.length > 60 ? '…' : ''}”</span>` : ''}</div>
+    <textarea rows="2" placeholder="${kind === 'qs' ? 'Điều bạn còn thắc mắc…' : 'Điều bạn muốn nhớ…'}"></textarea>
+    <div class="cm-row"><button class="btn sm primary" data-a="ok">Lưu</button>
+      <button class="btn sm ghost" data-a="no">Huỷ</button></div>`;
+
+  (sec || document.getElementById('traceList')).insertAdjacentElement(sec ? 'beforeend' : 'beforebegin', box);
+  const ta = box.querySelector('textarea');
+  ta.focus();
+
+  box.querySelector('[data-a=no]').onclick = () => box.remove();
+  box.querySelector('[data-a=ok]').onclick = () => {
+    const v = ta.value.trim();
+    if (!v) { ta.focus(); return; }
+    const rec = addTrace({ kind, secId, text: v, anchor: anchorText || null });
+    if (range && anchorText) { try { wrap(range, kind, rec.id); } catch (e) {} }
+    box.remove();
+    renderTraces();
+  };
+}
+
+/* ---------- Danh sách dấu vết ---------- */
+
+function renderTraces() {
+  const list = getTraces();
+  const el = document.getElementById('traceList');
+  const head = `<div class="traces-head">
+      <span>Dấu vết của bạn</span>
+      <span class="th-right"><span class="muted">${list.length} mục</span>
+        <button class="btn sm" id="addNote">+ Ghi chú chung</button></span>
+    </div>`;
+  el.innerHTML = `<div class="traces">${head}
+    ${list.length
+      ? list.map(t => traceRow(t, `<button class="btn sm ghost" data-del="${t.id}" title="Bỏ đánh dấu">×</button>`)).join('')
+      : '<div class="trace-row"><span class="muted small">Chưa có. Bôi đen một đoạn trong bài để đánh dấu.</span></div>'}
+  </div>`;
+
+  el.querySelector('#addNote').onclick = () => openComposer('nt', null, null, null);
+  el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    unwrap(b.dataset.del);
+    removeTrace(b.dataset.del);
+    renderTraces();
+  });
+  wireSources(el);
+  renderNoteCta();
+  renderGo();
+  refreshNoteBadge();
+}
+
+/* ---------- Lối vào Sổ ghi chú, ngay dưới bảng dấu vết ----------
+   Lối thứ hai bên cạnh nút trên nav. Learner nào bỏ qua thanh nav
+   vẫn gặp nó đúng lúc vừa xem lại dấu vết của mình. */
+
+function renderNoteCta() {
+  const n = getTraces().length;
+  document.getElementById('noteCta').innerHTML = `
+    <a class="vl-note lg" href="option-${OPT}.html">
+      ${ICON_NOTE}<span>Mở Sổ ghi chú</span>${n ? `<span class="cnt">${n}</span>` : ''}
+    </a>
+    <span class="small muted">Tạo ghi chú từ những chỗ bạn đã đánh dấu.</span>`;
+}
+
+/* ---------- Nút đi tiếp ---------- */
+
+function renderGo() {
+  const n = getTraces().length;
+  const go = document.getElementById('go');
+  go.innerHTML = `<button class="btn primary" id="next">Hoàn thành bài học →</button>
+    ${n ? '' : '<span class="small muted">Bạn chưa đánh dấu gì — vẫn đi tiếp được.</span>'}`;
+  document.getElementById('next').onclick = () => location.href = `option-${OPT}.html`;
+}
+
+/* ---------- Vẽ lại dấu vết đã có (lượt thứ hai) ----------
+
+   Dấu vết lưu chuỗi do Selection.toString() trả về — chuỗi này đã
+   GỘP khoảng trắng, nên một đoạn vắt qua chỗ xuống dòng trong source
+   sẽ KHÔNG khớp với node.textContent (còn nguyên \n và thụt lề).
+   Tìm theo bản gộp khoảng trắng rồi chiếu ngược về offset thật. */
+
+function findAnchorRange(root, anchor) {
+  const target = anchor.replace(/\s+/g, ' ').trim();
+  if (!target) return null;
+  const wk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = wk.nextNode())) {
+    const raw = node.textContent;
+    let flat = '';
+    const map = [];                       // map[i trong flat] = offset thật trong raw
+    for (let i = 0; i < raw.length; i++) {
+      if (/\s/.test(raw[i])) {
+        if (!flat || flat.endsWith(' ')) continue;
+        flat += ' ';
+      } else {
+        flat += raw[i];
+      }
+      map.push(i);
+    }
+    const j = flat.indexOf(target);
+    if (j < 0) continue;
+    const r = document.createRange();
+    r.setStart(node, map[j]);
+    r.setEnd(node, map[j + target.length - 1] + 1);
+    return r;
+  }
+  return null;
+}
+
+function repaintAll() {
+  getTraces().forEach(t => {
+    const anchor = t.anchor || (t.kind === 'hl' || t.kind === 'un' ? t.text : null);
+    if (!t.secId || !anchor) return;
+    const root = document.getElementById(t.secId);
+    if (!root) return;
+    const r = findAnchorRange(root, anchor);
+    if (r) wrap(r, t.kind, t.id);
+  });
+}
+
+if (restored) repaintAll();
+renderTraces();
+wireSources(main);
+</script>
 </body>
 </html>

@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VLearn — Sổ ghi chú</title>
+<link rel="stylesheet" href="shared.css">
+</head>
+<body>
+<script src="fixture.js"></script>
+<script src="shared.js"></script>
+<script>
+/* ===========================================================
+   OPTION C — "Nháp sẵn" (AI Draft, Human Review)
+   Hệ thống đề nghị ngay khi hết bài → AI soạn bản nháp từ TOÀN BỘ
+   dấu vết → learner đối chiếu, sửa, và quyết định lưu hay huỷ.
+   AI KHÔNG tự lưu.
+   =========================================================== */
+
+const main = chrome({ progress: '4/14 hoạt động', pct: 28, notebook: { active: true } });
+const ALL = getTraces();   // dấu vết learner tự tạo ở Màn 1
+
+let draft = [];        // bản làm việc
+let removed = {};      // khối đã xoá
+let edits = {};        // khối đã sửa tay
+let narrow = false;
+
+/* ---------- Bước 1 — lời đề nghị ---------- */
+
+function stepOffer() {
+  main.innerHTML = `<div class="vl-card">
+    <button class="vl-ai-fab" title="Trợ lý AI">✦</button>
+
+    <div class="step-head">
+      <div class="step-kicker">SỔ GHI CHÚ · NHÁP SẴN</div>
+      <h1>Bạn vừa học xong bài này</h1>
+    </div>
+
+    <div class="notice ai">
+      Tôi có thể dựng sẵn một bản ghi chú nháp từ <b>nội dung bài</b> và <b>${ALL.length} dấu vết</b> của bạn.
+      Đây là <b>bản nháp cần bạn kiểm tra</b> trước khi lưu.
+    </div>
+
+    <div class="actions" style="margin-top:0">
+      <button class="btn primary" id="make">Tạo bản nháp</button>
+      <button class="btn ghost" id="skip">Bỏ qua</button>
+    </div>
+
+    <div style="margin-top:28px">${tracesBlock()}</div>
+  </div>`;
+
+  document.getElementById('make').onclick = () => { narrow = false; start(cDraft(ALL, false)); };
+  document.getElementById('skip').onclick = stepBlank;
+  wireSources(main);
+}
+
+function start(src) {
+  draft = JSON.parse(JSON.stringify(src));
+  removed = {}; edits = {};
+  stepDraft();
+}
+
+/* ---------- Bước 2 — bản nháp ---------- */
+
+function blockHTML(b) {
+  if (edits[b.id] !== undefined) {
+    return `<div class="block" data-bid="${b.id}">
+      <div class="block-top"><h4>${b.title}</h4><span class="warn-tag">✎ bạn đã sửa</span><span class="sp"></span>
+        <button class="btn sm" data-act="edit">Sửa</button>
+        <button class="btn sm ghost" data-act="del">Xoá</button></div>
+      <div class="block-body"><p>${esc(edits[b.id]).replace(/\n/g, '<br>')}</p></div>
+    </div>`;
+  }
+  const body = b.items
+    ? `<ul>${b.items.map(i => `<li>${i.t} <a href="#" class="src-link" data-src="${i.src}">→ ${i.srcLabel}</a></li>`).join('')}</ul>`
+    : `<p>${b.body} ${(b.srcs || []).map(s => `<a href="#" class="src-link" data-src="${s.id}">→ ${s.label}</a>`).join(' ')}</p>`;
+
+  return `<div class="block${removed[b.id] ? ' removed' : ''}" data-bid="${b.id}">
+    <div class="block-top">
+      <h4>${b.title}</h4>
+      ${b.warn ? `<span class="warn-tag">⚠ ${b.warnText}</span>` : ''}
+      <span class="sp"></span>
+      <button class="btn sm" data-act="edit" ${removed[b.id] ? 'disabled' : ''}>Sửa</button>
+      <button class="btn sm ghost" data-act="del">${removed[b.id] ? 'Khôi phục' : 'Xoá'}</button>
+    </div>
+    <div class="block-body">${body}</div>
+  </div>`;
+}
+
+function stepDraft() {
+  main.innerHTML = `<div class="vl-card">
+    <button class="vl-ai-fab" title="Trợ lý AI">✦</button>
+
+    <div class="step-head">
+      <div class="step-kicker">SỔ GHI CHÚ · NHÁP SẴN</div>
+      <h1>Bản nháp đã sẵn sàng${narrow ? ' (phạm vi hẹp)' : ''}</h1>
+      <p>Kiểm tra trước khi lưu. Mọi dòng đều có đường về nguồn.</p>
+    </div>
+
+    <div class="notice ai">
+      Bản nháp này do AI soạn từ nội dung bài và dấu vết của bạn.
+      Nó <b>có thể bỏ sót hoặc suy diễn sai</b>. <b>Không có gì được lưu cho tới khi bạn bấm Lưu.</b>
+    </div>
+
+    <div class="draft">
+      <div class="draft-head">
+        <h3>${COURSE.title}</h3>
+        <div class="d">${COURSE.name.toLowerCase()} · ${COURSE.lessonNo} · ${COURSE.date}</div>
+      </div>
+      ${draft.map(blockHTML).join('')}
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" id="save">Lưu ghi chú</button>
+      <span class="spacer"></span>
+      ${narrow ? '' : `<button class="btn" id="renarrow">Tạo lại, chỉ dùng chỗ tôi đã đánh dấu</button>`}
+      <button class="btn danger" id="cancel">Huỷ bản nháp</button>
+    </div>
+  </div>`;
+
+  main.querySelectorAll('.block').forEach(el => {
+    const bid = el.dataset.bid;
+    const b = draft.find(x => x.id === bid);
+
+    el.querySelector('[data-act=del]').onclick = () => { removed[bid] = !removed[bid]; stepDraft(); };
+
+    el.querySelector('[data-act=edit]').onclick = () => {
+      const cur = edits[bid] !== undefined ? edits[bid] : plainOf(b);
+      el.querySelector('.block-body').innerHTML =
+        `<textarea rows="5">${esc(cur)}</textarea>
+         <div style="margin-top:8px;display:flex;gap:8px">
+           <button class="btn sm primary" data-act="ok">Lưu sửa</button>
+           <button class="btn sm ghost" data-act="no">Huỷ</button>
+         </div>`;
+      el.querySelector('[data-act=ok]').onclick = () => { edits[bid] = el.querySelector('textarea').value; stepDraft(); };
+      el.querySelector('[data-act=no]').onclick = stepDraft;
+    };
+  });
+
+  const rn = document.getElementById('renarrow');
+  if (rn) rn.onclick = () => { narrow = true; start(cDraft(ALL, true)); };
+  document.getElementById('cancel').onclick = stepBlank;
+  document.getElementById('save').onclick = saveDraft;
+
+  wireSources(main);
+  window.scrollTo(0, 0);
+}
+
+function plainOf(b) {
+  if (b.items) return b.items.map(i => '• ' + i.t).join('\n');
+  return b.body.replace(/<[^>]+>/g, '');
+}
+
+/* ---------- Lối thoát — huỷ / bỏ qua ---------- */
+
+function stepBlank() {
+  main.innerHTML = `<div class="vl-card">
+    <button class="vl-ai-fab" title="Trợ lý AI">✦</button>
+    <div class="step-head">
+      <div class="step-kicker">SỔ GHI CHÚ · NHÁP SẴN</div>
+      <h1>Tự viết ghi chú</h1>
+      <p>Không có bản nháp nào. Dấu vết của bạn vẫn ở bên phải.</p>
+    </div>
+    <div class="two-col">
+      <textarea class="editor" id="ed" placeholder="Viết ghi chú của bạn…"></textarea>
+      ${sideSources()}
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="save">Lưu ghi chú</button>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="again">Đổi ý, tạo bản nháp</button>
+    </div>
+  </div>`;
+  document.getElementById('again').onclick = () => { narrow = false; start(cDraft(ALL, false)); };
+  document.getElementById('save').onclick = () => {
+    const v = document.getElementById('ed').value.trim();
+    renderSaved(main, `<section><pre class="plain">${esc(v) || '(trống)'}</pre></section>`, []);
+  };
+  wireSources(main);
+  window.scrollTo(0, 0);
+}
+
+/* ---------- Lưu ---------- */
+
+function saveDraft() {
+  const srcs = [];
+  const html = draft.filter(b => !removed[b.id]).map(b => {
+    if (edits[b.id] !== undefined) {
+      return `<section><h4>${b.title}</h4><pre class="plain">${esc(edits[b.id])}</pre></section>`;
+    }
+    if (b.items) {
+      b.items.forEach(i => srcs.push(i.srcLabel));
+      return `<section><h4>${b.title}</h4><ul>${b.items.map(i =>
+        `<li>${i.t} <a href="#" class="src-link" data-src="${i.src}">→ ${i.srcLabel}</a></li>`).join('')}</ul></section>`;
+    }
+    (b.srcs || []).forEach(s => srcs.push(s.label));
+    return `<section><h4>${b.title}</h4><p>${b.body} ${(b.srcs || []).map(s =>
+      `<a href="#" class="src-link" data-src="${s.id}">→ ${s.label}</a>`).join(' ')}</p></section>`;
+  }).join('');
+
+  renderSaved(main, html || '<p class="muted">(trống)</p>', [...new Set(srcs)]);
+}
+
+stepOffer();
+</script>
+</body>
+</html>

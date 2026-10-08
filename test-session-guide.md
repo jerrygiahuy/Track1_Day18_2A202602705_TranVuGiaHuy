@@ -3,7 +3,7 @@
 ## Người facilitate
 
 - **Trần Vũ Gia Huy**
-- Phụ trách chính Option C, nhưng phiên test phải cho tester trải nghiệm cả Option B và Option C với cùng task.
+- Người dùng guide này phải cho tester trải nghiệm cả Option B và Option C với cùng task. Ownership chính thức: Trần Vũ Gia Huy phụ trách B; Lưu Mạnh Hùng phụ trách C.
 
 ## Trước phiên test
 
